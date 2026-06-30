@@ -19,7 +19,7 @@
     header { background:#111827; color:#fff; padding:16px; text-align:center; position:sticky; top:0; z-index:10; }
     header h1 { margin:0; font-size:22px; }
     main { max-width:900px; margin:0 auto; padding:14px; }
-    .tabs { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin:12px 0; position:sticky; top:58px; z-index:9; background:var(--bg); padding:8px 0; }
+    .tabs { display:grid; grid-template-columns:repeat(7,1fr); gap:8px; margin:12px 0; position:sticky; top:58px; z-index:9; background:var(--bg); padding:8px 0; }
     .tab { border:0; border-radius:14px; padding:14px 8px; font-weight:800; font-size:15px; background:#e5e7eb; }
     .tab.active { background:#111827; color:white; }
     .card { background:var(--card); border-radius:18px; padding:16px; margin-bottom:14px; box-shadow:0 2px 10px rgba(16,24,40,.08); }
@@ -76,6 +76,7 @@
     <button class="tab" onclick="showTab('ordine', this)">Ordine</button>
     <button class="tab" onclick="showTab('prodotti', this)">Prodotti</button>
     <button class="tab" onclick="showTab('storico', this)">Storico</button>
+    <button class="tab" onclick="showTab('backup', this)">Backup</button>
   </div>
 
 
@@ -240,6 +241,32 @@
           <tbody id="productRows"></tbody>
         </table>
       </div>
+    </div>
+  </section>
+
+
+  <section id="backup" class="tabpage hidden">
+    <div class="card">
+      <h2>Backup e ripristino dati</h2>
+      <p class="small">Usa questa sezione prima di aggiornare l'app o cambiare tablet. Il backup completo salva prodotti, giacenze e storico.</p>
+
+      <div class="grid2" style="margin-top:14px;">
+        <button class="btn-dark" onclick="exportBackup()">Esporta backup completo</button>
+        <button class="btn-green" onclick="document.getElementById('backupFile').click()">Importa backup completo</button>
+      </div>
+      <input id="backupFile" type="file" accept=".json" style="display:none" onchange="importBackupFile(event)">
+
+      <h3>Recupero da CSV già scaricati</h3>
+      <p class="small">Se hai scaricato i CSV dalla vecchia app, importa prima il CSV giacenze e poi, se vuoi, il CSV movimenti.</p>
+
+      <div class="grid2" style="margin-top:14px;">
+        <button class="btn-blue" onclick="document.getElementById('stockCsvFile').click()">Importa CSV giacenze</button>
+        <button class="btn-gray" onclick="document.getElementById('movesCsvFile').click()">Importa CSV movimenti</button>
+      </div>
+      <input id="stockCsvFile" type="file" accept=".csv,text/csv" style="display:none" onchange="importStockCSV(event)">
+      <input id="movesCsvFile" type="file" accept=".csv,text/csv" style="display:none" onchange="importMovesCSV(event)">
+
+      <p class="small">Importando il CSV giacenze vengono aggiornati magazzino, linea e scorta minima dei prodotti presenti nel file.</p>
     </div>
   </section>
 
@@ -511,6 +538,142 @@ function copyOrderText(){
     : "Nessun prodotto sotto scorta minima.";
   navigator.clipboard?.writeText(text).then(()=>alert("Testo ordine copiato."), ()=>alert(text));
 }
+
+
+function exportBackup(){
+  const data = {
+    app: "Portido Magazzino",
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    products: products(),
+    moves: moves()
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const date = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `backup_portido_magazzino_${date}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function importBackupFile(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if(!Array.isArray(data.products)) throw new Error("Backup prodotti non valido");
+      if(!Array.isArray(data.moves)) throw new Error("Backup movimenti non valido");
+      if(!confirm("Importare questo backup? Sostituirà i dati presenti in questa app.")) return;
+      saveProducts(data.products);
+      saveMoves(data.moves);
+      render();
+      alert("Backup importato correttamente.");
+    } catch(e) {
+      alert("File backup non valido.");
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = "";
+}
+
+function parseCSV(text){
+  const rows = [];
+  let row = [], cur = "", inQuotes = false;
+  for(let i=0; i<text.length; i++){
+    const ch = text[i], next = text[i+1];
+    if(ch === '"' && inQuotes && next === '"'){ cur += '"'; i++; continue; }
+    if(ch === '"'){ inQuotes = !inQuotes; continue; }
+    if((ch === ';' || ch === ',') && !inQuotes){ row.push(cur); cur = ""; continue; }
+    if((ch === '\n' || ch === '\r') && !inQuotes){
+      if(ch === '\r' && next === '\n') i++;
+      row.push(cur); cur = "";
+      if(row.some(v => String(v).trim() !== "")) rows.push(row);
+      row = [];
+      continue;
+    }
+    cur += ch;
+  }
+  row.push(cur);
+  if(row.some(v => String(v).trim() !== "")) rows.push(row);
+  return rows;
+}
+
+function importStockCSV(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const rows = parseCSV(reader.result);
+    if(rows.length < 2){ alert("CSV giacenze vuoto o non valido."); return; }
+    const headers = rows[0].map(h => h.trim().toLowerCase());
+    const idxName = headers.findIndex(h => h.includes("prodotto"));
+    const idxCat = headers.findIndex(h => h.includes("categoria"));
+    const idxMag = headers.findIndex(h => h.includes("magazzino"));
+    const idxLinea = headers.findIndex(h => h.includes("linea"));
+    const idxMin = headers.findIndex(h => h.includes("min"));
+    if(idxName < 0 || idxMag < 0){ alert("CSV giacenze non riconosciuto."); return; }
+
+    let p = products();
+    rows.slice(1).forEach(r => {
+      const name = (r[idxName] || "").trim();
+      if(!name) return;
+      let pr = p.find(x => x.name.toLowerCase() === name.toLowerCase());
+      if(!pr){
+        pr = {id:id(), name, cat:(r[idxCat]||"Altro").trim()||"Altro", mag:0, linea:0, min:0};
+        p.push(pr);
+      }
+      if(idxCat >= 0 && r[idxCat]) pr.cat = r[idxCat].trim();
+      if(idxMag >= 0) pr.mag = parseInt(r[idxMag] || "0", 10) || 0;
+      if(idxLinea >= 0) pr.linea = parseInt(r[idxLinea] || "0", 10) || 0;
+      if(idxMin >= 0) pr.min = parseInt(r[idxMin] || "0", 10) || 0;
+    });
+    saveProducts(p);
+    render();
+    alert("CSV giacenze importato.");
+  };
+  reader.readAsText(file);
+  event.target.value = "";
+}
+
+function importMovesCSV(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const rows = parseCSV(reader.result);
+    if(rows.length < 2){ alert("CSV movimenti vuoto o non valido."); return; }
+    const headers = rows[0].map(h => h.trim().toLowerCase());
+    const idxDate = headers.findIndex(h => h.includes("data"));
+    const idxType = headers.findIndex(h => h.includes("tipo"));
+    const idxProduct = headers.findIndex(h => h.includes("prodotto"));
+    const idxQty = headers.findIndex(h => h.includes("quant"));
+    const idxNote = headers.findIndex(h => h.includes("note"));
+    if(idxDate < 0 || idxType < 0 || idxProduct < 0 || idxQty < 0){ alert("CSV movimenti non riconosciuto."); return; }
+
+    let existing = moves();
+    const imported = rows.slice(1).map(r => ({
+      date: r[idxDate] || "",
+      type: r[idxType] || "",
+      product: r[idxProduct] || "",
+      qty: parseInt(r[idxQty] || "0", 10) || 0,
+      note: idxNote >= 0 ? (r[idxNote] || "") : ""
+    })).filter(x => x.product && x.type);
+
+    if(!confirm(`Importare ${imported.length} movimenti? Verranno aggiunti allo storico attuale.`)) return;
+    saveMoves([...imported, ...existing]);
+    render();
+    alert("CSV movimenti importato.");
+  };
+  reader.readAsText(file);
+  event.target.value = "";
+}
+
 
 function clearAll(){
   if(confirm("Cancellare prodotti, giacenze e storico movimenti da questo tablet?")){
