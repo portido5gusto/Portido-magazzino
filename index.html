@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Portido - Magazzino Tablet</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#111827">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --bg:#f4f5f7; --card:#fff; --dark:#101828; --muted:#667085;
+      --green:#1f7a3f; --blue:#195cc8; --orange:#b54708; --red:#b42318; --line:#e4e7ec;
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--dark); }
+    header { background:#111827; color:#fff; padding:16px; text-align:center; position:sticky; top:0; z-index:10; }
+    header h1 { margin:0; font-size:22px; }
+    main { max-width:900px; margin:0 auto; padding:14px; }
+    .tabs { overflow-x:auto; display:grid; grid-template-columns:repeat(8,1fr); gap:8px; margin:12px 0; position:sticky; top:58px; z-index:9; background:var(--bg); padding:8px 0; }
+    .tab { border:0; border-radius:14px; padding:14px 8px; font-weight:800; font-size:15px; background:#e5e7eb; }
+    .tab.active { background:#111827; color:white; }
+    .card { background:var(--card); border-radius:18px; padding:16px; margin-bottom:14px; box-shadow:0 2px 10px rgba(16,24,40,.08); }
+    h2 { margin:0 0 12px; font-size:22px; }
+    h3 { margin:16px 0 8px; }
+    label { display:block; font-weight:800; margin:12px 0 7px; font-size:17px; }
+    select,input,textarea { width:100%; padding:15px; font-size:19px; border-radius:14px; border:1px solid #cfd4dc; background:white; }
+    textarea { min-height:70px; resize:vertical; }
+    button { border:0; border-radius:15px; padding:15px 12px; font-weight:900; font-size:18px; cursor:pointer; }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+    .btn-green { background:var(--green); color:white; }
+    .btn-blue { background:var(--blue); color:white; }
+    .btn-orange { background:var(--orange); color:white; }
+    .btn-red { background:var(--red); color:white; }
+    .btn-dark { background:#344054; color:white; }
+    .btn-gray { background:#e5e7eb; color:#111827; }
+    .small { color:var(--muted); font-size:13px; line-height:1.35; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th,td { border-bottom:1px solid var(--line); padding:9px 7px; text-align:left; vertical-align:top; }
+    th { background:#f9fafb; font-size:13px; }
+    .table-wrap { overflow:auto; max-height:470px; border:1px solid var(--line); border-radius:14px; }
+    .pill { display:inline-block; padding:5px 9px; border-radius:999px; font-size:12px; font-weight:800; background:#eef2ff; }
+    .low { background:#fff4ed; color:#b54708; }
+    .ok { background:#ecfdf3; color:#027a48; }
+    .hidden { display:none; }
+    .product-actions button { padding:8px 10px; font-size:13px; border-radius:10px; }
+    .totals { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:10px 0; }
+    .total { background:#f9fafb; border:1px solid var(--line); border-radius:14px; padding:12px; }
+    .total b { display:block; font-size:22px; }
+
+    .quick-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:12px; }
+    .quick-product { background:#fff; border:2px solid #d0d5dd; min-height:76px; font-size:16px; line-height:1.15; }
+    .quick-product.selected { background:#111827; color:white; border-color:#111827; }
+    .quick-actions { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:12px; }
+    .quick-selected { background:#f9fafb; border:1px solid var(--line); border-radius:14px; padding:12px; margin-top:10px; font-weight:800; }
+    .searchbox { margin-top:10px; }
+
+    @media (max-width:650px) {
+      .tabs { grid-template-columns:repeat(2,1fr); top:54px; }
+      .grid2,.grid3,.totals { grid-template-columns:1fr; }
+      .quick-grid { grid-template-columns:repeat(2,1fr); }
+    }
+  </style>
+</head>
+<body>
+<header><h1>Portido - Magazzino Tablet</h1></header>
+
+<main>
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('rapido', this)">Rapido</button>
+    <button class="tab" onclick="showTab('movimenti', this)">Movimenti</button>
+    <button class="tab" onclick="showTab('giacenze', this)">Giacenze</button>
+    <button class="tab" onclick="showTab('ordine', this)">Ordine</button>
+    <button class="tab" onclick="showTab('prodotti', this)">Prodotti</button>
+    <button class="tab" onclick="showTab('storico', this)">Storico</button>
+    <button class="tab" onclick="showTab('backup', this)">Backup</button>
+    <button class="tab" onclick="showTab('cassa', this)">Cassa</button>
+  </div>
+
+
+  <section id="rapido" class="tabpage">
+    <div class="card">
+      <h2>Schermata rapida</h2>
+      <p class="small">Tocca il prodotto, scegli la quantità e registra subito vendita o carico.</p>
+
+      <input class="searchbox" id="quickSearch" placeholder="Cerca prodotto..." oninput="renderQuickProducts()">
+
+      <div class="quick-selected" id="quickSelected">Nessun prodotto selezionato</div>
+
+      <label>Quantità</label>
+      <input id="quickQty" type="number" min="1" step="1" value="1">
+      <div class="grid3" style="margin-top:12px;">
+        <button class="btn-gray" onclick="setQuickQty(1)">1</button>
+        <button class="btn-gray" onclick="setQuickQty(2)">2</button>
+        <button class="btn-gray" onclick="setQuickQty(3)">3</button>
+        <button class="btn-gray" onclick="setQuickQty(6)">6</button>
+        <button class="btn-gray" onclick="setQuickQty(12)">12</button>
+        <button class="btn-gray" onclick="setQuickQty(24)">24</button>
+      </div>
+
+      <div class="quick-actions">
+        <button class="btn-dark" onclick="quickMovement('Vendita Linea')">🛒 Vendita</button>
+        <button class="btn-blue" onclick="quickMovement('Carico Linea')">+ Linea</button>
+        <button class="btn-green" onclick="quickMovement('Carico Magazzino')">+ Magazzino</button>
+        <button class="btn-orange" onclick="quickMovement('Reso Linea')">↩ Reso</button>
+      </div>
+
+      <h3>Prodotti</h3>
+      <div class="quick-grid" id="quickGrid"></div>
+    </div>
+  </section>
+
+  <section id="movimenti" class="tabpage hidden">
+    <div class="card">
+      <h2>Registra movimento</h2>
+      <label>Prodotto</label>
+      <select id="movProd"></select>
+
+      <div class="grid2">
+        <div>
+          <label>Quantità</label>
+          <input id="movQty" type="number" min="1" step="1" value="1">
+        </div>
+        <div>
+          <label>Note</label>
+          <input id="movNote" placeholder="Facoltativo">
+        </div>
+      </div>
+
+      <div class="grid3" style="margin-top:12px;">
+        <button class="btn-gray" onclick="setQty(1)">1</button>
+        <button class="btn-gray" onclick="setQty(2)">2</button>
+        <button class="btn-gray" onclick="setQty(3)">3</button>
+        <button class="btn-gray" onclick="setQty(6)">6</button>
+        <button class="btn-gray" onclick="setQty(12)">12</button>
+        <button class="btn-gray" onclick="setQty(24)">24</button>
+      </div>
+
+      <div class="grid2" style="margin-top:14px;">
+        <button class="btn-green" onclick="movement('Carico Magazzino')">+ Carico Magazzino</button>
+        <button class="btn-blue" onclick="movement('Carico Linea')">+ Carico Linea</button>
+        <button class="btn-orange" onclick="movement('Reso Linea')">↩ Reso Linea</button>
+        <button class="btn-red" onclick="movement('Scarico/Rettifica')">− Scarico/Rettifica</button>
+        <button class="btn-dark" onclick="movement('Vendita Linea')">🛒 Vendita Linea</button>
+      </div>
+      <p class="small">Carico Linea scala dal magazzino e aumenta la linea. Le vendite conviene importarle dalla sezione Cassa.</p>
+    </div>
+  </section>
+
+  <section id="giacenze" class="tabpage hidden">
+    <div class="card">
+      <h2>Giacenze</h2>
+      <label>Filtra categoria</label>
+      <select id="stockFilter" onchange="render()">
+        <option value="Tutte">Tutte</option>
+        <option value="Vini">Vini</option>
+        <option value="Birre">Birre</option>
+        <option value="Soft drink">Soft drink</option>
+        <option value="Altro">Altro</option>
+      </select>
+      <div class="totals">
+        <div class="total">Prodotti <b id="totProducts">0</b></div>
+        <div class="total">Tot. magazzino <b id="totMag">0</b></div>
+        <div class="total">Tot. linea <b id="totLinea">0</b></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Prodotto</th><th>Magazzino</th><th>Linea</th><th>Min.</th><th>Stato</th></tr></thead>
+          <tbody id="stockRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+
+  <section id="ordine" class="tabpage hidden">
+    <div class="card">
+      <h2>Ordine consigliato</h2>
+      <p class="small">Mostra i prodotti con magazzino sotto o uguale alla scorta minima. La quantità consigliata serve per tornare al minimo.</p>
+
+      <label>Filtra categoria</label>
+      <select id="orderFilter" onchange="render()">
+        <option value="Tutte">Tutte</option>
+        <option value="Vini">Vini</option>
+        <option value="Birre">Birre</option>
+        <option value="Soft drink">Soft drink</option>
+        <option value="Altro">Altro</option>
+      </select>
+
+      <div class="table-wrap" style="margin-top:12px;">
+        <table>
+          <thead><tr><th>Prodotto</th><th>Magazzino</th><th>Min.</th><th>Da ordinare</th></tr></thead>
+          <tbody id="orderRows"></tbody>
+        </table>
+      </div>
+
+      <div class="grid2" style="margin-top:14px;">
+        <button class="btn-dark" onclick="downloadCSV('ordine')">Scarica ordine CSV</button>
+        <button class="btn-gray" onclick="copyOrderText()">Copia testo ordine</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="prodotti" class="tabpage hidden">
+    <div class="card">
+      <h2>Aggiungi / modifica prodotto</h2>
+      <input type="hidden" id="editId">
+      <label>Nome prodotto</label>
+      <input id="prodName" placeholder="Es. Vermentino X">
+      <div class="grid3">
+        <div>
+          <label>Categoria</label>
+          <select id="prodCat">
+            <option>Vini</option><option>Birre</option><option>Soft drink</option><option>Altro</option>
+          </select>
+        </div>
+        <div>
+          <label>Magazzino iniziale</label>
+          <input id="prodMag" type="number" min="0" step="1" value="0">
+        </div>
+        <div>
+          <label>Linea iniziale</label>
+          <input id="prodLinea" type="number" min="0" step="1" value="0">
+        </div>
+      </div>
+      <label>Scorta minima magazzino</label>
+      <input id="prodMin" type="number" min="0" step="1" value="0">
+      <div class="grid2" style="margin-top:14px;">
+        <button class="btn-green" onclick="saveProduct()">Salva prodotto</button>
+        <button class="btn-gray" onclick="resetProductForm()">Nuovo / annulla</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Elenco prodotti</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Prodotto</th><th>Categoria</th><th>Min.</th><th>Azioni</th></tr></thead>
+          <tbody id="productRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+
+
+  <section id="cassa" class="tabpage hidden">
+    <div class="card">
+      <h2>Importa vendite dalla cassa</h2>
+      <p class="small">Esporta il venduto dal gestionale di cassa in CSV e importalo qui. L'app scalerà automaticamente le quantità dalla linea, evitando di inserire le vendite due volte.</p>
+
+      <div class="grid2" style="margin-top:14px;">
+        <button class="btn-dark" onclick="document.getElementById('salesCsvFile').click()">Importa CSV vendite</button>
+        <button class="btn-gray" onclick="downloadSalesTemplate()">Scarica modello CSV</button>
+      </div>
+      <input id="salesCsvFile" type="file" accept=".csv,text/csv" style="display:none" onchange="importSalesCSV(event)">
+
+      <h3>Formato riconosciuto</h3>
+      <p class="small">Servono almeno una colonna prodotto/articolo e una colonna quantità. Nomi riconosciuti: Prodotto, Articolo, Nome, Descrizione, Quantità, Qta, Q.tà, Venduto.</p>
+
+      <h3>Riepilogo ultimo import</h3>
+      <div class="table-wrap" style="margin-top:12px;">
+        <table>
+          <thead><tr><th>Data</th><th>Prodotto</th><th>Q.tà</th><th>Esito</th></tr></thead>
+          <tbody id="salesImportRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="backup" class="tabpage hidden">
+    <div class="card">
+      <h2>Backup e ripristino dati</h2>
+      <p class="small">Usa questa sezione prima di aggiornare l'app o cambiare tablet. Il backup completo salva prodotti, giacenze e storico.</p>
+
+      <div class="grid2" style="margin-top:14px;">
+        <button class="btn-dark" onclick="exportBackup()">Esporta backup completo</button>
+        <button class="btn-green" onclick="document.getElementById('backupFile').click()">Importa backup completo</button>
+      </div>
+      <input id="backupFile" type="file" accept=".json" style="display:none" onchange="importBackupFile(event)">
+
+      <h3>Recupero da CSV già scaricati</h3>
+      <p class="small">Se hai scaricato i CSV dalla vecchia app, importa prima il CSV giacenze e poi, se vuoi, il CSV movimenti.</p>
+
+      <div class="grid2" style="margin-top:14px;">
+        <button class="btn-blue" onclick="document.getElementById('stockCsvFile').click()">Importa CSV giacenze</button>
+        <button class="btn-gray" onclick="document.getElementById('movesCsvFile').click()">Importa CSV movimenti</button>
+      </div>
+      <input id="stockCsvFile" type="file" accept=".csv,text/csv" style="display:none" onchange="importStockCSV(event)">
+      <input id="movesCsvFile" type="file" accept=".csv,text/csv" style="display:none" onchange="importMovesCSV(event)">
+
+      <p class="small">Importando il CSV giacenze vengono aggiornati magazzino, linea e scorta minima dei prodotti presenti nel file.</p>
+    </div>
+  </section>
+
+  <section id="storico" class="tabpage hidden">
+    <div class="card">
+      <h2>Storico movimenti</h2>
+      <div class="grid2">
+        <button class="btn-dark" onclick="downloadCSV('movimenti')">Scarica movimenti CSV</button>
+        <button class="btn-dark" onclick="downloadCSV('giacenze')">Scarica giacenze CSV</button>
+        <button class="btn-red" onclick="clearAll()">Cancella tutti i dati</button>
+        <button class="btn-gray" onclick="seedDefaults()">Ripristina prodotti base</button>
+      </div>
+      <p class="small">I dati sono salvati solo su questo tablet/browser. Se cambi tablet, esporta prima i CSV.</p>
+      <div class="table-wrap" style="margin-top:12px;">
+        <table>
+          <thead><tr><th>Data</th><th>Tipo</th><th>Prodotto</th><th>Q.tà</th><th>Note</th></tr></thead>
+          <tbody id="historyRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const PRODUCTS_KEY="portido_products_v2";
+const MOVES_KEY="portido_moves_v2";
+let selectedQuickProductId = null;
+
+const defaultProducts = [
+ ["Groppolo","Vini",0,0,0],["Campo alle Rose","Vini",0,0,0],["Barbazena","Vini",0,0,0],
+ ["Bonazolae","Vini",0,0,0],["Parmaea","Vini",0,0,0],["Libellula Blu","Vini",0,0,0],
+ ["Ngilu","Vini",0,0,0],["Rivus","Vini",0,0,0],["Venne","Vini",0,0,0],
+ ["Struzzati","Vini",0,0,0],["Scomfort Food","Vini",0,0,0],["Cartizze","Vini",0,0,0],
+ ["Birra Analcolica","Birre",0,0,0],
+ ["Coca-Cola","Soft drink",0,0,0],["Coca-Cola Zero","Soft drink",0,0,0],["Fanta","Soft drink",0,0,0],
+ ["Sprite","Soft drink",0,0,0],["Acqua Tonica","Soft drink",0,0,0],["Ginger Beer","Soft drink",0,0,0],
+ ["Ginger Ale","Soft drink",0,0,0]
+];
+
+function id(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function now(){ return new Date().toLocaleString("it-IT",{dateStyle:"short",timeStyle:"short"}); }
+function products(){ return JSON.parse(localStorage.getItem(PRODUCTS_KEY)||"[]"); }
+function moves(){ return JSON.parse(localStorage.getItem(MOVES_KEY)||"[]"); }
+function saveProducts(p){ localStorage.setItem(PRODUCTS_KEY,JSON.stringify(p)); }
+function saveMoves(m){ localStorage.setItem(MOVES_KEY,JSON.stringify(m)); }
+
+function seedDefaults(){
+  let p=products();
+  defaultProducts.forEach(d=>{
+    if(!p.some(x=>x.name.toLowerCase()===d[0].toLowerCase())){
+      p.push({id:id(), name:d[0], cat:d[1], mag:d[2], linea:d[3], min:d[4]});
+    }
+  });
+  saveProducts(p); render();
+}
+
+function showTab(name, btn){
+  document.querySelectorAll(".tabpage").forEach(x=>x.classList.add("hidden"));
+  document.getElementById(name).classList.remove("hidden");
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  btn.classList.add("active");
+  render();
+}
+
+function setQty(n){ document.getElementById("movQty").value=n; }
+
+
+function setQuickQty(n){ document.getElementById("quickQty").value=n; }
+
+function selectQuickProduct(pid){
+  selectedQuickProductId = pid;
+  const p = products().find(x=>x.id===pid);
+  document.getElementById("quickSelected").textContent = p ? "Selezionato: " + p.name : "Nessun prodotto selezionato";
+  renderQuickProducts();
+}
+
+function renderQuickProducts(){
+  const grid = document.getElementById("quickGrid");
+  if(!grid) return;
+  const q = (document.getElementById("quickSearch")?.value || "").toLowerCase().trim();
+  let p = products().sort((a,b)=>a.cat.localeCompare(b.cat)||a.name.localeCompare(b.name));
+  if(q) p = p.filter(x => x.name.toLowerCase().includes(q) || x.cat.toLowerCase().includes(q));
+  grid.innerHTML = p.map(x => {
+    const selected = x.id === selectedQuickProductId ? " selected" : "";
+    return `<button class="quick-product${selected}" onclick="selectQuickProduct('${x.id}')">${escapeHtml(x.name)}<br><span class="small">M:${x.mag} · L:${x.linea}</span></button>`;
+  }).join("");
+}
+
+function quickMovement(type){
+  if(!selectedQuickProductId){ alert("Seleziona prima un prodotto."); return; }
+  const qty = parseInt(document.getElementById("quickQty").value || "0", 10);
+  if(!qty || qty < 1){ alert("Inserisci una quantità valida."); return; }
+
+  document.getElementById("movProd").value = selectedQuickProductId;
+  document.getElementById("movQty").value = qty;
+  document.getElementById("movNote").value = "Inserito da schermata rapida";
+  movement(type);
+  document.getElementById("quickQty").value = 1;
+}
+
+function movement(type){
+  const pid=document.getElementById("movProd").value;
+  const qty=parseInt(document.getElementById("movQty").value||"0",10);
+  const note=document.getElementById("movNote").value.trim();
+  if(!pid || qty<1){ alert("Seleziona prodotto e quantità valida."); return; }
+
+  let p=products();
+  const pr=p.find(x=>x.id===pid);
+  if(!pr){ alert("Prodotto non trovato."); return; }
+
+  if(type==="Carico Magazzino") pr.mag += qty;
+  if(type==="Carico Linea") {
+    if(pr.mag < qty && !confirm("Magazzino insufficiente. Vuoi procedere comunque?")) return;
+    pr.mag -= qty; pr.linea += qty;
+  }
+  if(type==="Reso Linea") {
+    if(pr.linea < qty && !confirm("Linea insufficiente. Vuoi procedere comunque?")) return;
+    pr.linea -= qty; pr.mag += qty;
+  }
+  if(type==="Vendita Linea") {
+    if(pr.linea < qty && !confirm("Linea insufficiente. Vuoi procedere comunque?")) return;
+    pr.linea -= qty;
+  }
+  if(type==="Scarico/Rettifica") {
+    if(pr.mag < qty && !confirm("Magazzino insufficiente. Vuoi procedere comunque?")) return;
+    pr.mag -= qty;
+  }
+
+  saveProducts(p);
+  let m=moves();
+  m.unshift({date:now(), type:type, product:pr.name, qty:qty, note:note});
+  saveMoves(m);
+  document.getElementById("movQty").value=1;
+  document.getElementById("movNote").value="";
+  render();
+}
+
+function saveProduct(){
+  const editId=document.getElementById("editId").value;
+  const name=document.getElementById("prodName").value.trim();
+  const cat=document.getElementById("prodCat").value;
+  const mag=parseInt(document.getElementById("prodMag").value||"0",10);
+  const linea=parseInt(document.getElementById("prodLinea").value||"0",10);
+  const min=parseInt(document.getElementById("prodMin").value||"0",10);
+  if(!name){ alert("Inserisci il nome prodotto."); return; }
+
+  let p=products();
+  if(editId){
+    const pr=p.find(x=>x.id===editId);
+    if(pr){ pr.name=name; pr.cat=cat; pr.mag=mag; pr.linea=linea; pr.min=min; }
+  } else {
+    if(p.some(x=>x.name.toLowerCase()===name.toLowerCase())) { alert("Prodotto già presente."); return; }
+    p.push({id:id(), name, cat, mag, linea, min});
+  }
+  saveProducts(p); resetProductForm(); render();
+}
+
+function editProduct(pid){
+  const pr=products().find(x=>x.id===pid);
+  if(!pr) return;
+  document.getElementById("editId").value=pr.id;
+  document.getElementById("prodName").value=pr.name;
+  document.getElementById("prodCat").value=pr.cat;
+  document.getElementById("prodMag").value=pr.mag;
+  document.getElementById("prodLinea").value=pr.linea;
+  document.getElementById("prodMin").value=pr.min;
+  window.scrollTo({top:0, behavior:"smooth"});
+}
+
+function deleteProduct(pid){
+  const pr=products().find(x=>x.id===pid);
+  if(!pr) return;
+  if(confirm("Eliminare prodotto: "+pr.name+"?")) {
+    saveProducts(products().filter(x=>x.id!==pid));
+    render();
+  }
+}
+
+function resetProductForm(){
+  document.getElementById("editId").value="";
+  document.getElementById("prodName").value="";
+  document.getElementById("prodCat").value="Vini";
+  document.getElementById("prodMag").value=0;
+  document.getElementById("prodLinea").value=0;
+  document.getElementById("prodMin").value=0;
+}
+
+function render(){
+  let p=products().sort((a,b)=>a.cat.localeCompare(b.cat)||a.name.localeCompare(b.name));
+  if(p.length===0){ seedDefaults(); return; }
+
+  const sel=document.getElementById("movProd");
+  const current=sel.value;
+  sel.innerHTML=p.map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join("");
+  if(current) sel.value=current;
+
+  document.getElementById("totProducts").textContent=p.length;
+  document.getElementById("totMag").textContent=p.reduce((s,x)=>s+Number(x.mag||0),0);
+  document.getElementById("totLinea").textContent=p.reduce((s,x)=>s+Number(x.linea||0),0);
+
+  const stockFilter=(document.getElementById("stockFilter")?.value)||"Tutte";
+  const stockList=stockFilter==="Tutte"?p:p.filter(x=>x.cat===stockFilter);
+
+  document.getElementById("stockRows").innerHTML=stockList.map(x=>{
+    const low = Number(x.mag||0) <= Number(x.min||0);
+    return `<tr><td>${escapeHtml(x.name)}<br><span class="small">${escapeHtml(x.cat)}</span></td><td><b>${x.mag}</b></td><td>${x.linea}</td><td>${x.min}</td><td><span class="pill ${low?'low':'ok'}">${low?'Da ordinare':'OK'}</span></td></tr>`;
+  }).join("");
+
+
+  const orderFilter=(document.getElementById("orderFilter")?.value)||"Tutte";
+  let orderList=orderFilter==="Tutte"?p:p.filter(x=>x.cat===orderFilter);
+  orderList=orderList.filter(x=>Number(x.min||0)>0 && Number(x.mag||0)<=Number(x.min||0));
+  const orderRowsEl=document.getElementById("orderRows");
+  if(orderRowsEl){
+    orderRowsEl.innerHTML = orderList.length ? orderList.map(x=>{
+      const needed = Math.max(Number(x.min||0)-Number(x.mag||0), 0);
+      return `<tr><td>${escapeHtml(x.name)}<br><span class="small">${escapeHtml(x.cat)}</span></td><td>${x.mag}</td><td>${x.min}</td><td><b>${needed}</b></td></tr>`;
+    }).join("") : `<tr><td colspan="4">Nessun prodotto sotto scorta minima.</td></tr>`;
+  }
+
+  document.getElementById("productRows").innerHTML=p.map(x=>`
+    <tr>
+      <td>${escapeHtml(x.name)}<br><span class="small">Mag: ${x.mag} · Linea: ${x.linea}</span></td>
+      <td>${escapeHtml(x.cat)}</td><td>${x.min}</td>
+      <td class="product-actions">
+        <button class="btn-gray" onclick="editProduct('${x.id}')">Modifica</button>
+        <button class="btn-red" onclick="deleteProduct('${x.id}')">Elimina</button>
+      </td>
+    </tr>`).join("");
+
+  renderQuickProducts();
+
+  const m=moves();
+  document.getElementById("historyRows").innerHTML=m.map(x=>`<tr><td>${escapeHtml(x.date)}</td><td>${escapeHtml(x.type)}</td><td>${escapeHtml(x.product)}</td><td>${x.qty}</td><td>${escapeHtml(x.note||"")}</td></tr>`).join("");
+}
+
+function csvEscape(v){ return `"${String(v??"").replaceAll('"','""')}"`; }
+
+function downloadCSV(kind){
+  let lines=[];
+  if(kind==="giacenze"){
+    lines=[["Prodotto","Categoria","Magazzino","Linea","Scorta minima"].join(";")];
+    products().forEach(x=>lines.push([x.name,x.cat,x.mag,x.linea,x.min].map(csvEscape).join(";")));
+  } else if(kind==="ordine"){
+    const orderFilter=(document.getElementById("orderFilter")?.value)||"Tutte";
+    let list=products().sort((a,b)=>a.cat.localeCompare(b.cat)||a.name.localeCompare(b.name));
+    if(orderFilter!=="Tutte") list=list.filter(x=>x.cat===orderFilter);
+    list=list.filter(x=>Number(x.min||0)>0 && Number(x.mag||0)<=Number(x.min||0));
+    lines=[["Prodotto","Categoria","Magazzino","Scorta minima","Da ordinare"].join(";")];
+    list.forEach(x=>lines.push([x.name,x.cat,x.mag,x.min,Math.max(Number(x.min||0)-Number(x.mag||0),0)].map(csvEscape).join(";")));
+  } else {
+    lines=[["Data","Tipo","Prodotto","Quantità","Note"].join(";")];
+    moves().forEach(x=>lines.push([x.date,x.type,x.product,x.qty,x.note].map(csvEscape).join(";")));
+  }
+  const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8;"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download=kind==="giacenze"?"giacenze_portido.csv":kind==="ordine"?"ordine_portido.csv":"movimenti_portido.csv";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function copyOrderText(){
+  const orderFilter=(document.getElementById("orderFilter")?.value)||"Tutte";
+  let list=products().sort((a,b)=>a.cat.localeCompare(b.cat)||a.name.localeCompare(b.name));
+  if(orderFilter!=="Tutte") list=list.filter(x=>x.cat===orderFilter);
+  list=list.filter(x=>Number(x.min||0)>0 && Number(x.mag||0)<=Number(x.min||0));
+  const text=list.length
+    ? list.map(x=>`${x.name}: ${Math.max(Number(x.min||0)-Number(x.mag||0),0)} da ordinare`).join("\n")
+    : "Nessun prodotto sotto scorta minima.";
+  navigator.clipboard?.writeText(text).then(()=>alert("Testo ordine copiato."), ()=>alert(text));
+}
+
+
+
+function normalizeName(s){
+  return String(s||"")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9]+/g," ")
+    .trim();
+}
+
+function findProductByName(name){
+  const n = normalizeName(name);
+  const list = products();
+  let exact = list.find(x => normalizeName(x.name) === n);
+  if(exact) return exact;
+  return list.find(x => n.includes(normalizeName(x.name)) || normalizeName(x.name).includes(n)) || null;
+}
+
+function downloadSalesTemplate(){
+  const lines = [
+    ["Prodotto","Quantità"].join(";"),
+    ["Groppolo","1"].join(";"),
+    ["Coca-Cola","2"].join(";")
+  ];
+  const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8;"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download="modello_import_vendite_cassa.csv";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function importSalesCSV(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const rows = parseCSV(reader.result);
+    if(rows.length < 2){ alert("CSV vendite vuoto o non valido."); return; }
+
+    const headers = rows[0].map(h => h.trim().toLowerCase());
+    const idxProduct = headers.findIndex(h =>
+      h.includes("prodotto") || h.includes("articolo") || h.includes("descrizione") || h === "nome" || h.includes("item")
+    );
+    const idxQty = headers.findIndex(h =>
+      h.includes("quant") || h.includes("qta") || h.includes("q.t") || h.includes("venduto") || h.includes("qty")
+    );
+
+    if(idxProduct < 0 || idxQty < 0){
+      alert("CSV non riconosciuto. Servono una colonna prodotto/articolo e una colonna quantità.");
+      return;
+    }
+
+    const aggregated = {};
+    rows.slice(1).forEach(r => {
+      const name = (r[idxProduct] || "").trim();
+      const qty = Math.round(parseFloat(String(r[idxQty] || "0").replace(",", ".")) || 0);
+      if(!name || qty <= 0) return;
+      aggregated[name] = (aggregated[name] || 0) + qty;
+    });
+
+    const entries = Object.entries(aggregated);
+    if(entries.length === 0){ alert("Nessuna vendita valida trovata nel CSV."); return; }
+
+    if(!confirm(`Importare ${entries.length} articoli venduti e scalare la linea?`)) return;
+
+    const p = products();
+    const m = moves();
+    const report = [];
+    const importDate = now();
+
+    entries.forEach(([name, qty]) => {
+      const pr = findProductByName(name);
+      if(!pr){
+        report.push({date: importDate, product: name, qty, result: "Non trovato"});
+        return;
+      }
+
+      const result = Number(pr.linea || 0) < qty ? "Linea insufficiente: scalato comunque" : "OK";
+      pr.linea = Number(pr.linea || 0) - qty;
+
+      m.unshift({
+        date: importDate,
+        type: "Vendita Linea da Cassa",
+        product: pr.name,
+        qty: qty,
+        note: "Import CSV cassa: " + name
+      });
+      report.push({date: importDate, product: pr.name, qty, result});
+    });
+
+    saveProducts(p);
+    saveMoves(m);
+    localStorage.setItem("portido_last_sales_import_v1", JSON.stringify(report));
+    render();
+    alert("Import vendite completato. Controlla il riepilogo nella sezione Cassa.");
+  };
+  reader.readAsText(file);
+  event.target.value = "";
+}
+
+function exportBackup(){
+  const data = {
+    app: "Portido Magazzino",
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    products: products(),
+    moves: moves()
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const date = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `backup_portido_magazzino_${date}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function importBackupFile(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if(!Array.isArray(data.products)) throw new Error("Backup prodotti non valido");
+      if(!Array.isArray(data.moves)) throw new Error("Backup movimenti non valido");
+      if(!confirm("Importare questo backup? Sostituirà i dati presenti in questa app.")) return;
+      saveProducts(data.products);
+      saveMoves(data.moves);
+      render();
+      alert("Backup importato correttamente.");
+    } catch(e) {
+      alert("File backup non valido.");
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = "";
+}
+
+function parseCSV(text){
+  const rows = [];
+  let row = [], cur = "", inQuotes = false;
+  for(let i=0; i<text.length; i++){
+    const ch = text[i], next = text[i+1];
+    if(ch === '"' && inQuotes && next === '"'){ cur += '"'; i++; continue; }
+    if(ch === '"'){ inQuotes = !inQuotes; continue; }
+    if((ch === ';' || ch === ',') && !inQuotes){ row.push(cur); cur = ""; continue; }
+    if((ch === '\n' || ch === '\r') && !inQuotes){
+      if(ch === '\r' && next === '\n') i++;
+      row.push(cur); cur = "";
+      if(row.some(v => String(v).trim() !== "")) rows.push(row);
+      row = [];
+      continue;
+    }
+    cur += ch;
+  }
+  row.push(cur);
+  if(row.some(v => String(v).trim() !== "")) rows.push(row);
+  return rows;
+}
+
+function importStockCSV(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const rows = parseCSV(reader.result);
+    if(rows.length < 2){ alert("CSV giacenze vuoto o non valido."); return; }
+    const headers = rows[0].map(h => h.trim().toLowerCase());
+    const idxName = headers.findIndex(h => h.includes("prodotto"));
+    const idxCat = headers.findIndex(h => h.includes("categoria"));
+    const idxMag = headers.findIndex(h => h.includes("magazzino"));
+    const idxLinea = headers.findIndex(h => h.includes("linea"));
+    const idxMin = headers.findIndex(h => h.includes("min"));
+    if(idxName < 0 || idxMag < 0){ alert("CSV giacenze non riconosciuto."); return; }
+
+    let p = products();
+    rows.slice(1).forEach(r => {
+      const name = (r[idxName] || "").trim();
+      if(!name) return;
+      let pr = p.find(x => x.name.toLowerCase() === name.toLowerCase());
+      if(!pr){
+        pr = {id:id(), name, cat:(r[idxCat]||"Altro").trim()||"Altro", mag:0, linea:0, min:0};
+        p.push(pr);
+      }
+      if(idxCat >= 0 && r[idxCat]) pr.cat = r[idxCat].trim();
+      if(idxMag >= 0) pr.mag = parseInt(r[idxMag] || "0", 10) || 0;
+      if(idxLinea >= 0) pr.linea = parseInt(r[idxLinea] || "0", 10) || 0;
+      if(idxMin >= 0) pr.min = parseInt(r[idxMin] || "0", 10) || 0;
+    });
+    saveProducts(p);
+    render();
+    alert("CSV giacenze importato.");
+  };
+  reader.readAsText(file);
+  event.target.value = "";
+}
+
+function importMovesCSV(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const rows = parseCSV(reader.result);
+    if(rows.length < 2){ alert("CSV movimenti vuoto o non valido."); return; }
+    const headers = rows[0].map(h => h.trim().toLowerCase());
+    const idxDate = headers.findIndex(h => h.includes("data"));
+    const idxType = headers.findIndex(h => h.includes("tipo"));
+    const idxProduct = headers.findIndex(h => h.includes("prodotto"));
+    const idxQty = headers.findIndex(h => h.includes("quant"));
+    const idxNote = headers.findIndex(h => h.includes("note"));
+    if(idxDate < 0 || idxType < 0 || idxProduct < 0 || idxQty < 0){ alert("CSV movimenti non riconosciuto."); return; }
+
+    let existing = moves();
+    const imported = rows.slice(1).map(r => ({
+      date: r[idxDate] || "",
+      type: r[idxType] || "",
+      product: r[idxProduct] || "",
+      qty: parseInt(r[idxQty] || "0", 10) || 0,
+      note: idxNote >= 0 ? (r[idxNote] || "") : ""
+    })).filter(x => x.product && x.type);
+
+    if(!confirm(`Importare ${imported.length} movimenti? Verranno aggiunti allo storico attuale.`)) return;
+    saveMoves([...imported, ...existing]);
+    render();
+    alert("CSV movimenti importato.");
+  };
+  reader.readAsText(file);
+  event.target.value = "";
+}
+
+
+function clearAll(){
+  if(confirm("Cancellare prodotti, giacenze e storico movimenti da questo tablet?")){
+    localStorage.removeItem(PRODUCTS_KEY); localStorage.removeItem(MOVES_KEY); seedDefaults();
+  }
+}
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+}
+
+seedDefaults();
+render();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js").catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
